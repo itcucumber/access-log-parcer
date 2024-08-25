@@ -8,10 +8,34 @@ import java.util.Scanner;
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
     public static void main(String[] args) throws UnsupportedEncodingException {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.println("Введите текст и нажмите <Enter>");
-        String text = new Scanner(System.in).nextLine();
-        System.out.println("Длина текста: " + text.length());
+        Scanner number = new Scanner(System.in);
+
+        // Ввод первого числа
+        System.out.print("Введите первое число: ");
+        int num1 = number.nextInt();
+
+        // Ввод второго числа
+        System.out.print("Введите второе число: ");
+        int num2 = number.nextInt();
+
+        // Подсчет суммы
+        int sum = num1 + num2;
+        System.out.println("Сумма: " + sum);
+
+        // Подсчет разности
+        int difference = num1 - num2;
+        System.out.println("Разность: " + difference);
+
+        // Подсчет произведения
+        int product = num1 * num2;
+        System.out.println("Произведение: " + product);
+
+        // Подсчет частного
+        if (num2 != 0) {
+            double quotient = (double) num1 / num2;
+            System.out.println("Частное: " + quotient);
+        } else {
+            System.out.println("Частное: деление на ноль невозможно");
+        }
     }
 }
