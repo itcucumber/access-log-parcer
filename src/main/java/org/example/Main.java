@@ -1,12 +1,28 @@
 package org.example;
+import java.io.File;
+import java.util.Scanner;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
-    public static void main(String[] args) {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.println("Случайное число от 0 до 1: " + Math.random());
 
+    public static void main(String[] args) {
+        int fileCounter = 0;
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("Введите путь к файлу:");
+            String path = scanner.nextLine();
+
+            File file = new File(path);
+            boolean fileExists = file.exists();
+            boolean isDirectory = file.isDirectory();
+
+            if (!fileExists || isDirectory) {
+                System.out.println("Файл не существует или указан путь к папке. Попробуйте еще раз.");
+                continue;
+            }
+
+            fileCounter++;
+            System.out.println("Путь указан верно. Это файл номер " + fileCounter);
+        }
     }
 }
