@@ -17,7 +17,7 @@ public class Main {
             boolean isDirectory = file.isDirectory();
 
             if (!fileExists || isDirectory) {
-                System.out.println("Файл не существует или указан путь к папке. Попробуйте еще раз");
+                System.out.println("Файл не существует или указан путь к папке. Попробуйте еще раз.");
                 continue;
             }
 
