@@ -1,17 +1,28 @@
 package org.example;
-
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
+import java.io.File;
 import java.util.Scanner;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
-    public static void main(String[] args) throws UnsupportedEncodingException {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.println("Введите текст и нажмите <Enter>");
-        String text = new Scanner(System.in).nextLine();
-        System.out.println("Длина текста: " + text.length());
+
+    public static void main(String[] args) {
+        int fileCounter = 0;
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("Введите путь к файлу:");
+            String path = scanner.nextLine();
+
+            File file = new File(path);
+            boolean fileExists = file.exists();
+            boolean isDirectory = file.isDirectory();
+
+            if (!fileExists || isDirectory) {
+                System.out.println("Файл не существует или указан путь к папке. Попробуйте еще раз.");
+                continue;
+            }
+
+            fileCounter++;
+            System.out.println("Путь указан верно. Это файл номер " + fileCounter);
+        }
     }
 }
