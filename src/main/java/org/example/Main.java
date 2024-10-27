@@ -1,90 +1,179 @@
 package org.example;
+
 import java.io.*;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Main {
 
     public static void main(String[] args) {
-        String path = "C:/Users/Surface Pro 9/Documents/access.log";
+        String logFilePath = "C:/Users/Surface Pro 9/Documents/access.log";
+        File logFile = new File(logFilePath);
 
-        int totalReq = 0;
-        int googlebotReq = 0;
-        int yandexbotReq = 0;
+        if (!logFile.exists()) {
+            System.err.println("Файл не найден: " + logFilePath);
+            return;
+        }
+        if (!logFile.isFile()) {
+            System.err.println("Указан путь к папке, не является путём к файлу: " + logFilePath);
+            return;
+        }
 
-        try {
-            File file = new File(path);
-            if (!file.exists() || !file.isFile()) {
-                throw new FileNotFoundException("Файл не найден: " + path);
-            }
-            if (!file.isFile()) {
-                throw new IOException("Указан путь к папке, не является путём к файлу: " + path);
-            }
+        Statistics stats = new Statistics();
 
-            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-                String line;
-
-                while ((line = reader.readLine()) != null) {
-                    totalReq++;
-
-                    if (line.length() > 1024) {
-                        throw new LineTooLongException("Строка длиной более 1024 символов найдена.");
-                    }
-
-                    String userAgent = extractUserAgent(line);
-                    String botType = extractBotType(userAgent);
-
-                    if ("Googlebot".equals(botType)) {
-                        googlebotReq++;
-                    } else if ("YandexBot".equals(botType)) {
-                        yandexbotReq++;
-                    }
+        try (BufferedReader br = new BufferedReader(new FileReader(logFile))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                try {
+                    LogEntry entry = new LogEntry(line);
+                    stats.addEntry(entry);
+                } catch (IllegalArgumentException ex) {
+                    System.err.println("Некорректная строка: " + line);
                 }
             }
-
-            printBotStat(totalReq, googlebotReq, yandexbotReq);
-
-        } catch (FileNotFoundException ex) {
-            System.err.println("Ошибка проверки существования файла: ");
-            ex.printStackTrace();
         } catch (IOException ex) {
             System.err.println("Ошибка проверки пути: " + ex.getMessage());
-            ex.printStackTrace();
         }
+
+        System.out.println("Средний трафик за час: " + stats.getTrafficRate() + " байт");
     }
 
-    private static String extractUserAgent(String line) {
-        int startIndex = line.indexOf("\"Mozilla");
-        int endIndex = line.lastIndexOf("\"");
-        if (startIndex != -1 && endIndex != -1) {
-            return line.substring(startIndex, endIndex + 1);
+    public static class LogEntry {
+        public enum HttpMethod {
+            GET, POST, PUT, DELETE, UNKNOWN
         }
-        return "";
-    }
 
-    private static String extractBotType(String userAgent) {
-        int startBracket = userAgent.indexOf('(');
-        int endBracket = userAgent.indexOf(')');
-        if (startBracket != -1 && endBracket != -1) {
-            String[] parts = userAgent.substring(startBracket + 1, endBracket).split(";");
-            if (parts.length >= 2) {
-                return parts[1].split("/")[0].trim();
+        private final String ipAddr;
+        private final LocalDateTime time;
+        private final HttpMethod method;
+        private final String path;
+        private final int responseCode;
+        private final int responseSize;
+        private final String referer;
+        private final UserAgent userAgent;
+
+        public LogEntry(String logLine) {
+            String logPattern = "(\\S+) - - \\[(.+?)\\] \"(\\S+) (.+?) HTTP/\\d\\.\\d\" (\\d{3}) (\\d+) \"([^\"]*)\" \"([^\"]*?)\"";
+            Pattern pattern = Pattern.compile(logPattern);
+            Matcher matcher = pattern.matcher(logLine);
+
+            if (matcher.find()) {
+                this.ipAddr = matcher.group(1);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH);
+                this.time = LocalDateTime.parse(matcher.group(2), formatter);
+                this.method = parseHttpMethod(matcher.group(3));
+                this.path = matcher.group(4);
+                this.responseCode = Integer.parseInt(matcher.group(5));
+                this.responseSize = Integer.parseInt(matcher.group(6));
+                this.referer = matcher.group(7);
+                this.userAgent = new UserAgent(matcher.group(8));
+            } else {
+                throw new IllegalArgumentException("Некорректный формат строки лога");
             }
         }
-        return "";
+
+        public LocalDateTime getTime() {
+            return time;
+        }
+
+        public int getResponseSize() {
+            return responseSize;
+        }
+
+        private HttpMethod parseHttpMethod(String methodString) {
+            try {
+                return HttpMethod.valueOf(methodString.toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                return HttpMethod.UNKNOWN;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "LogEntry{" +
+                    "ipAddr='" + ipAddr + '\'' +
+                    ", time=" + time +
+                    ", method=" + method +
+                    ", path='" + path + '\'' +
+                    ", responseCode=" + responseCode +
+                    ", responseSize=" + responseSize +
+                    ", referer='" + referer + '\'' +
+                    ", userAgent=" + userAgent +
+                    '}';
+        }
     }
 
-    private static void printBotStat(int totalReq, int googlebotReq, int yandexbotReq) {
-        double googlebotPercent = (double) googlebotReq / totalReq * 100;
-        double yandexbotPercent = (double) yandexbotReq / totalReq * 100;
+    public static class UserAgent {
+        private final String browser;
+        private final String os;
 
-        System.out.println("Общее количество запросов от Googlebot и YandexBot: " + totalReq);
-        System.out.println("Доля запросов от Googlebot: " + String.format("%.2f", googlebotPercent) + "%");
-        System.out.println("Доля запросов от YandexBot: " + String.format("%.2f", yandexbotPercent) + "%");
+        public UserAgent(String userAgentString) {
+            if (userAgentString.contains("Firefox")) {
+                browser = "Firefox";
+            } else if (userAgentString.contains("Chrome")) {
+                browser = "Chrome";
+            } else if (userAgentString.contains("Safari")) {
+                browser = "Safari";
+            } else {
+                browser = "Unknown";
+            }
+
+            if (userAgentString.contains("Windows")) {
+                os = "Windows";
+            } else if (userAgentString.contains("Mac")) {
+                os = "MacOS";
+            } else if (userAgentString.contains("Linux")) {
+                os = "Linux";
+            } else {
+                os = "Unknown";
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "UserAgent{" +
+                    "browser='" + browser + '\'' +
+                    ", os='" + os + '\'' +
+                    '}';
+        }
     }
-}
 
-class LineTooLongException extends RuntimeException {
-    public LineTooLongException(String message) {
-        super(message);
+    public static class Statistics {
+        private long totalTraffic = 0;
+        private LocalDateTime minTime = null;
+        private LocalDateTime maxTime = null;
+
+        public void addEntry(LogEntry entry) {
+            if (entry.getResponseSize() < 0) {
+                System.err.println("Отрицательный размер ответа: " + entry.getResponseSize());
+                return;
+            }
+
+            totalTraffic += entry.getResponseSize();
+
+            if (minTime == null || entry.getTime().isBefore(minTime)) {
+                minTime = entry.getTime();
+            }
+            if (maxTime == null || entry.getTime().isAfter(maxTime)) {
+                maxTime = entry.getTime();
+            }
+        }
+
+        public double getTrafficRate() {
+            if (minTime == null || maxTime == null || totalTraffic <= 0) {
+                return 0;
+            }
+
+            long hours = Duration.between(minTime, maxTime).toHours();
+            if (hours <= 0) {
+                return totalTraffic;
+            }
+            return (double) totalTraffic / hours;
+        }
     }
 }
 
