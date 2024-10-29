@@ -4,6 +4,8 @@ import java.io.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,6 +42,8 @@ public class Main {
         }
 
         System.out.println("Средний трафик за час: " + stats.getTrafficRate() + " байт");
+        System.out.println("Список всех существующих страниц: " + stats.getExistingPages());
+        System.out.println("Статистика операционных систем пользователей сайта: " + stats.getOsStatistics());
     }
 
     public static class LogEntry {
@@ -82,6 +86,18 @@ public class Main {
 
         public int getResponseSize() {
             return responseSize;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public int getResponseCode() {
+            return responseCode;
+        }
+
+        public UserAgent getUserAgent() {
+            return userAgent;
         }
 
         private HttpMethod parseHttpMethod(String methodString) {
@@ -133,6 +149,10 @@ public class Main {
             }
         }
 
+        public String getOs() {
+            return os;
+        }
+
         @Override
         public String toString() {
             return "UserAgent{" +
@@ -146,6 +166,8 @@ public class Main {
         private long totalTraffic = 0;
         private LocalDateTime minTime = null;
         private LocalDateTime maxTime = null;
+        private final HashSet<String> existingPages = new HashSet<>();
+        private final HashMap<String, Integer> osCount = new HashMap<>();
 
         public void addEntry(LogEntry entry) {
             if (entry.getResponseSize() < 0) {
@@ -161,6 +183,13 @@ public class Main {
             if (maxTime == null || entry.getTime().isAfter(maxTime)) {
                 maxTime = entry.getTime();
             }
+
+            if (entry.getResponseCode() == 200) {
+                existingPages.add(entry.getPath());
+            }
+
+            String os = entry.getUserAgent().getOs();
+            osCount.put(os, osCount.getOrDefault(os, 0) + 1);
         }
 
         public double getTrafficRate() {
@@ -169,11 +198,20 @@ public class Main {
             }
 
             long hours = Duration.between(minTime, maxTime).toHours();
-            if (hours <= 0) {
-                return totalTraffic;
+            return hours <= 0 ? totalTraffic : (double) totalTraffic / hours;
+        }
+
+        public HashSet<String> getExistingPages() {
+            return new HashSet<>(existingPages);
+        }
+
+        public HashMap<String, Double> getOsStatistics() {
+            int total = osCount.values().stream().mapToInt(Integer::intValue).sum();
+            HashMap<String, Double> osStats = new HashMap<>();
+            for (String os : osCount.keySet()) {
+                osStats.put(os, (double) osCount.get(os) / total);
             }
-            return (double) totalTraffic / hours;
+            return osStats;
         }
     }
 }
-
