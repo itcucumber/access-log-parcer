@@ -42,8 +42,10 @@ public class Main {
         }
 
         System.out.println("Средний трафик за час: " + stats.getTrafficRate() + " байт");
-        System.out.println("Список всех существующих страниц: " + stats.getExistingPages());
+        System.out.println("Список всех существующих страниц: " + stats.getExistPages());
+        System.out.println("Список всех несуществующих страниц: " + stats.getNotExistPages());
         System.out.println("Статистика операционных систем пользователей сайта: " + stats.getOsStatistics());
+        System.out.println("Статистика браузеров пользователей сайта: " + stats.getBrowserStatistics());
     }
 
     public static class LogEntry {
@@ -149,6 +151,10 @@ public class Main {
             }
         }
 
+        public String getBrowser() {
+            return browser;
+        }
+
         public String getOs() {
             return os;
         }
@@ -166,8 +172,10 @@ public class Main {
         private long totalTraffic = 0;
         private LocalDateTime minTime = null;
         private LocalDateTime maxTime = null;
-        private final HashSet<String> existingPages = new HashSet<>();
+        private final HashSet<String> existPages = new HashSet<>();
+        private final HashSet<String> notexistPages = new HashSet<>();
         private final HashMap<String, Integer> osCount = new HashMap<>();
+        private final HashMap<String, Integer> browserCount = new HashMap<>();
 
         public void addEntry(LogEntry entry) {
             if (entry.getResponseSize() < 0) {
@@ -185,11 +193,17 @@ public class Main {
             }
 
             if (entry.getResponseCode() == 200) {
-                existingPages.add(entry.getPath());
+                existPages.add(entry.getPath());
+            }
+            else if (entry.getResponseCode() == 404) {
+                notexistPages.add(entry.getPath());
             }
 
             String os = entry.getUserAgent().getOs();
             osCount.put(os, osCount.getOrDefault(os, 0) + 1);
+
+            String browser = entry.getUserAgent().getBrowser();
+            browserCount.put(browser, browserCount.getOrDefault(browser, 0) + 1);
         }
 
         public double getTrafficRate() {
@@ -201,8 +215,12 @@ public class Main {
             return hours <= 0 ? totalTraffic : (double) totalTraffic / hours;
         }
 
-        public HashSet<String> getExistingPages() {
-            return new HashSet<>(existingPages);
+        public HashSet<String> getExistPages() {
+            return new HashSet<>(existPages);
+        }
+
+        public HashSet<String> getNotExistPages() {
+            return new HashSet<>(notexistPages);
         }
 
         public HashMap<String, Double> getOsStatistics() {
@@ -212,6 +230,15 @@ public class Main {
                 osStats.put(os, (double) osCount.get(os) / total);
             }
             return osStats;
+        }
+
+        public HashMap<String, Double> getBrowserStatistics() {
+            int total = browserCount.values().stream().mapToInt(Integer::intValue).sum();
+            HashMap<String, Double> browserStats = new HashMap<>();
+            for (String browser : browserCount.keySet()) {
+                browserStats.put(browser, (double) browserCount.get(browser) / total);
+            }
+            return browserStats;
         }
     }
 }
