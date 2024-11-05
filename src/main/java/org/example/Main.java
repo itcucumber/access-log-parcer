@@ -46,6 +46,9 @@ public class Main {
         System.out.println("Список всех несуществующих страниц: " + stats.getNotExistPages());
         System.out.println("Статистика операционных систем пользователей сайта: " + stats.getOsStatistics());
         System.out.println("Статистика браузеров пользователей сайта: " + stats.getBrowserStatistics());
+        System.out.println("Среднее количество посещений за час: " + stats.getAvgVisitsInHour());
+        System.out.println("Среднее количество ошибочных запросов в час: " + stats.getAvgErrorsInHour());
+        System.out.println("Средняя посещаемость одним пользователем: " + stats.getAvgVisitsUser());
     }
 
     public static class LogEntry {
@@ -80,6 +83,10 @@ public class Main {
             } else {
                 throw new IllegalArgumentException("Некорректный формат строки лога");
             }
+        }
+
+        public String getIpAddr() {
+            return ipAddr;
         }
 
         public LocalDateTime getTime() {
@@ -151,12 +158,12 @@ public class Main {
             }
         }
 
-        public String getBrowser() {
-            return browser;
-        }
-
         public String getOs() {
             return os;
+        }
+
+        public String getBrowser() {
+            return browser;
         }
 
         @Override
@@ -177,6 +184,10 @@ public class Main {
         private final HashMap<String, Integer> osCount = new HashMap<>();
         private final HashMap<String, Integer> browserCount = new HashMap<>();
 
+        private int notBotCount = 0;
+        private int errRequestCount = 0;
+        private final HashSet<String> uniqueNotBotUsers = new HashSet<>();
+
         public void addEntry(LogEntry entry) {
             if (entry.getResponseSize() < 0) {
                 System.err.println("Отрицательный размер ответа: " + entry.getResponseSize());
@@ -194,6 +205,7 @@ public class Main {
 
             if (entry.getResponseCode() == 200) {
                 existPages.add(entry.getPath());
+
             }
             else if (entry.getResponseCode() == 404) {
                 notexistPages.add(entry.getPath());
@@ -204,6 +216,16 @@ public class Main {
 
             String browser = entry.getUserAgent().getBrowser();
             browserCount.put(browser, browserCount.getOrDefault(browser, 0) + 1);
+
+            String userAgentString = entry.getUserAgent().toString().toLowerCase();
+            if (!userAgentString.contains("bot")) {
+                notBotCount++;
+                uniqueNotBotUsers.add(entry.getIpAddr());
+            }
+
+            if (entry.getResponseCode() >= 400 && entry.getResponseCode() < 600) {
+                errRequestCount++;
+            }
         }
 
         public double getTrafficRate() {
@@ -239,6 +261,32 @@ public class Main {
                 browserStats.put(browser, (double) browserCount.get(browser) / total);
             }
             return browserStats;
+        }
+
+        public double getAvgVisitsInHour() {
+            if (minTime == null || maxTime == null || notBotCount == 0) {
+                return 0;
+            }
+
+            long hours = Duration.between(minTime, maxTime).toHours();
+            return hours <= 0 ? notBotCount : (double) notBotCount / hours;
+        }
+
+        public double getAvgErrorsInHour() {
+            if (minTime == null || maxTime == null || errRequestCount == 0) {
+                return 0;
+            }
+
+            long hours = Duration.between(minTime, maxTime).toHours();
+            return hours <= 0 ? errRequestCount : (double) errRequestCount / hours;
+        }
+
+        public double getAvgVisitsUser() {
+            if (uniqueNotBotUsers.isEmpty()) {
+                return 0;
+            }
+
+            return (double) notBotCount / uniqueNotBotUsers.size();
         }
     }
 }
