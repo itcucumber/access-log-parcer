@@ -49,6 +49,9 @@ public class Main {
         System.out.println("Среднее количество посещений за час: " + stats.getAvgVisitsInHour());
         System.out.println("Среднее количество ошибочных запросов в час: " + stats.getAvgErrorsInHour());
         System.out.println("Средняя посещаемость одним пользователем: " + stats.getAvgVisitsUser());
+        System.out.println("Пиковая посещаемость (в секунду): " + stats.getPikTrafficInSecond());
+        System.out.println("Список доменов ссылающихся сайтов: " + stats.getDomains());
+        System.out.println("Максимальная посещаемость одним пользователем: " + stats.getMaxVisitsOneUser());
     }
 
     public static class LogEntry {
@@ -103,6 +106,10 @@ public class Main {
 
         public int getResponseCode() {
             return responseCode;
+        }
+
+        public String getReferer() {
+            return referer;
         }
 
         public UserAgent getUserAgent() {
@@ -187,6 +194,9 @@ public class Main {
         private int notBotCount = 0;
         private int errRequestCount = 0;
         private final HashSet<String> uniqueNotBotUsers = new HashSet<>();
+        private final HashMap<Integer, Integer> visitsInSecond = new HashMap<>();
+        private final HashSet<String> refererDomains = new HashSet<>();
+        private final HashMap<String, Integer> userVisits = new HashMap<>();
 
         public void addEntry(LogEntry entry) {
             if (entry.getResponseSize() < 0) {
@@ -206,6 +216,7 @@ public class Main {
             if (entry.getResponseCode() == 200) {
                 existPages.add(entry.getPath());
 
+
             }
             else if (entry.getResponseCode() == 404) {
                 notexistPages.add(entry.getPath());
@@ -221,10 +232,28 @@ public class Main {
             if (!userAgentString.contains("bot")) {
                 notBotCount++;
                 uniqueNotBotUsers.add(entry.getIpAddr());
+
+                int secondOfDay = entry.getTime().getHour() * 3600 + entry.getTime().getMinute() * 60 + entry.getTime().getSecond();
+                visitsInSecond.put(secondOfDay, visitsInSecond.getOrDefault(secondOfDay, 0) + 1);
+                userVisits.put(entry.getIpAddr(), userVisits.getOrDefault(entry.getIpAddr(), 0) + 1);
             }
 
             if (entry.getResponseCode() >= 400 && entry.getResponseCode() < 600) {
                 errRequestCount++;
+            }
+
+            if (!entry.getReferer().isEmpty()) {
+                String domain = extDomain(entry.getReferer());
+                refererDomains.add(domain);
+            }
+        }
+
+        private String extDomain(String url) {
+            try {
+                String domain = url.replaceFirst("https?://(www\\.)?", "");
+                return domain.split("/")[0];
+            } catch (Exception ex) {
+                return "";
             }
         }
 
@@ -234,59 +263,50 @@ public class Main {
             }
 
             long hours = Duration.between(minTime, maxTime).toHours();
-            return hours <= 0 ? totalTraffic : (double) totalTraffic / hours;
+            return (hours > 0) ? (double) totalTraffic / hours : totalTraffic;
         }
 
         public HashSet<String> getExistPages() {
-            return new HashSet<>(existPages);
+            return existPages;
         }
 
         public HashSet<String> getNotExistPages() {
-            return new HashSet<>(notexistPages);
+            return notexistPages;
         }
 
-        public HashMap<String, Double> getOsStatistics() {
-            int total = osCount.values().stream().mapToInt(Integer::intValue).sum();
-            HashMap<String, Double> osStats = new HashMap<>();
-            for (String os : osCount.keySet()) {
-                osStats.put(os, (double) osCount.get(os) / total);
-            }
-            return osStats;
+        public HashMap<String, Integer> getOsStatistics() {
+            return osCount;
         }
 
-        public HashMap<String, Double> getBrowserStatistics() {
-            int total = browserCount.values().stream().mapToInt(Integer::intValue).sum();
-            HashMap<String, Double> browserStats = new HashMap<>();
-            for (String browser : browserCount.keySet()) {
-                browserStats.put(browser, (double) browserCount.get(browser) / total);
-            }
-            return browserStats;
+        public HashMap<String, Integer> getBrowserStatistics() {
+            return browserCount;
         }
 
         public double getAvgVisitsInHour() {
-            if (minTime == null || maxTime == null || notBotCount == 0) {
-                return 0;
-            }
-
             long hours = Duration.between(minTime, maxTime).toHours();
-            return hours <= 0 ? notBotCount : (double) notBotCount / hours;
+            return (hours > 0) ? (double) notBotCount / hours : notBotCount;
         }
 
         public double getAvgErrorsInHour() {
-            if (minTime == null || maxTime == null || errRequestCount == 0) {
-                return 0;
-            }
-
             long hours = Duration.between(minTime, maxTime).toHours();
-            return hours <= 0 ? errRequestCount : (double) errRequestCount / hours;
+            return (hours > 0) ? (double) errRequestCount / hours : errRequestCount;
         }
 
         public double getAvgVisitsUser() {
-            if (uniqueNotBotUsers.isEmpty()) {
-                return 0;
-            }
+            return uniqueNotBotUsers.size() > 0 ? (double) notBotCount / uniqueNotBotUsers.size() : 0;
 
-            return (double) notBotCount / uniqueNotBotUsers.size();
+        }
+
+        public int getPikTrafficInSecond() {
+            return visitsInSecond.values().stream().max(Integer::compare).orElse(0);
+        }
+
+        public HashSet<String> getDomains() {
+            return new HashSet<>(refererDomains);
+        }
+
+        public int getMaxVisitsOneUser() {
+            return userVisits.values().stream().max(Integer::compare).orElse(0);
         }
     }
 }
